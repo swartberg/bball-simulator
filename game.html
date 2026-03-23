@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Basketball Simulator: Draft Edition</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f4f9;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+  }
+  h1, h2, h3, h4 { text-align: center; }
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  }
+  .menu { text-align: center; padding: 40px; }
+  .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    background-color: #0056b3;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 10px;
+  }
+  .btn:hover { background-color: #004494; }
+  .btn:disabled { background-color: #aaa; cursor: not-allowed; }
+  .hidden { display: none !important; }
+  
+  /* SETUP UI */
+  .setup-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+  .setup-container input[type="text"] { padding: 10px; font-size: 16px; width: 250px; border: 1px solid #ccc; border-radius: 4px; }
+  .multiplayer-status { background: #e9ecef; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px; width: 100%; max-width: 400px; }
+  
+  /* DRAFT UI */
+  .draft-layout { display: flex; gap: 20px; margin-top: 20px; }
+  .roster-col { flex: 1; background: #fafafa; padding: 15px; border-radius: 6px; border: 1px solid #ddd; }
+  .pool-col { flex: 2; background: #fff; padding: 15px; border-radius: 6px; border: 1px solid #ddd; }
+  .draft-header { text-align: center; margin-bottom: 15px; font-size: 20px; font-weight: bold; color: #0056b3; }
+  
+  .player-card { 
+    border: 1px solid #ccc; 
+    border-radius: 6px; 
+    padding: 10px; 
+    margin-bottom: 10px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    background: #fff;
+  }
+  .player-card.drafted { opacity: 0.5; pointer-events: none; background: #eee; }
+  .player-info { display: flex; flex-direction: column; }
+  .player-name { font-weight: bold; font-size: 16px; }
+  .player-pos { font-size: 12px; color: white; background: #333; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; width: fit-content; }
+  .player-stats { font-size: 13px; color: #555; margin-top: 5px; }
+  
+  .roster-slot { padding: 10px; margin-bottom: 5px; border-bottom: 1px solid #eee; font-size: 14px; }
+  .roster-empty { color: #999; font-style: italic; }
+
+  /* GAME & END UI */
+  .scoreboard {
+    display: flex; justify-content: space-around; background: #222; color: #fff;
+    padding: 20px; border-radius: 8px; font-size: 24px; margin-bottom: 20px; font-weight: bold;
+  }
+  .log-container { background: #eee; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 14px; }
+  .log-entry { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #ddd; }
+  
+  .mvp-section { display: flex; justify-content: space-around; margin-top: 30px; }
+  .mvp-card { background: #fafafa; border: 2px solid #0056b3; border-radius: 8px; padding: 20px; width: 40%; text-align: center; }
+  .mvp-card h3 { margin-top: 0; color: #0056b3; }
+  .mvp-stats { font-size: 20px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Basketball Simulator</h1>
+
+  <div id="main-menu" class="menu">
+    <h2>Select Game Mode</h2>
+    <button class="btn" onclick="selectMode('offline')">Play Offline (Local)</button>
+    <button class="btn" onclick="selectMode('host')">Host Multiplayer</button>
+    <button class="btn" onclick="selectMode('join')">Join Multiplayer</button>
+  </div>
+
+  <div id="setup-board" class="hidden setup-container">
+    <div id="multiplayer-ui" class="multiplayer-status hidden">
+      <div id="host-ui" class="hidden">
+        <strong>Game ID:</strong> <span id="my-peer-id">Generating...</span><br>
+        <small>Send this ID to your friend.</small>
+        <p id="host-status" style="color: #0056b3; margin-top:10px;">Waiting for connection...</p>
+      </div>
+      <div id="join-ui" class="hidden">
+        <input type="text" id="join-id-input" placeholder="Enter Game ID">
+        <button class="btn" onclick="joinGame()">Connect</button>
+        <p id="join-status" style="margin-top:10px;"></p>
+      </div>
+    </div>
+
+    <h3>Name Your Team</h3>
+    <input type="text" id="my-team-name" placeholder="Enter Team Name" value="Home Team">
+    <button class="btn" id="ready-btn" onclick="readyUp()">Ready Up</button>
+  </div>
+
+  <div id="draft-board" class="hidden">
+    <div class="draft-header" id="draft-turn-display">Draft Room: Preparing...</div>
+    <div class="draft-layout">
+      <div class="roster-col">
+        <h3 id="t1-draft-name">Team 1</h3>
+        <div id="t1-roster"></div>
+      </div>
+      <div class="pool-col">
+        <h3>Available Players</h3>
+        <div id="draft-pool-container"></div>
+      </div>
+      <div class="roster-col">
+        <h3 id="t2-draft-name">Team 2</h3>
+        <div id="t2-roster"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-board" class="hidden">
+    <div class="scoreboard">
+      <div><span id="team1-score-name">Team 1</span>: <span id="score1">0</span></div>
+      <div style="font-size: 18px; font-weight: normal; margin-top: 5px;">Quarter: <span id="quarter-disp">1</span> | Round: <span id="round-disp">1</span>/40</div>
+      <div><span id="team2-score-name">Team 2</span>: <span id="score2">0</span></div>
+    </div>
+    <button class="btn" style="width:100%;" id="sim-btn" onclick="handleSimulateClick()">Simulate Possession</button>
+    <h3 style="margin-top: 20px;">Play-by-Play</h3>
+    <div class="log-container" id="play-log"></div>
+  </div>
+
+  <div id="end-screen" class="hidden">
+    <h2 style="font-size: 36px; margin-bottom: 5px;">Game Over</h2>
+    <h3 id="end-winner-msg" style="color: #0056b3; margin-top: 0; margin-bottom: 30px;"></h3>
+    
+    <div class="scoreboard" style="justify-content: center; gap: 80px;">
+      <div style="text-align: center;"><span id="end-t1-name">Team 1</span><br><span id="end-score1" style="font-size: 48px;">0</span></div>
+      <div style="text-align: center;"><span id="end-t2-name">Team 2</span><br><span id="end-score2" style="font-size: 48px;">0</span></div>
+    </div>
+
+    <div class="mvp-section">
+      <div class="mvp-card">
+        <h3>Team 1 Top Scorer</h3>
+        <div class="mvp-stats" id="t1-mvp-info">Name (Pos) - 0 pts</div>
+      </div>
+      <div class="mvp-card">
+        <h3>Team 2 Top Scorer</h3>
+        <div class="mvp-stats" id="t2-mvp-info">Name (Pos) - 0 pts</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const statCaps = {
+    'PG': { pt2: 90, pt3: 85, def: 70, blk: 50 },
+    'SG': { pt2: 85, pt3: 95, def: 65, blk: 55 },
+    'SF': { pt2: 80, pt3: 80, def: 90, blk: 65 },
+    'PF': { pt2: 80, pt3: 70, def: 75, blk: 85 },
+    'C':  { pt2: 95, pt3: 50, def: 70, blk: 95 }
+  };
+  const parodyNames = {
+    'PG': ["Seth Flurry", "Luca Donchick", "Dame Dillard", "Tyree Max", "Jay Brunson"],
+    'SG': ["Devon Baker", "Anton Edges", "Shay Gilgo", "Donne Mitchell", "Jim Harden"],
+    'SF': ["LeJon Brames", "Kevon Duront", "Jay Tatom", "Kawi Leonard", "Jim Butler"],
+    'PF': ["Gianni Antetko", "Xion Williams", "Anton Davis", "Carl Towns", "Paul Jorges"],
+    'C':  ["Nico Joking", "Joe Embead", "Vic Wemby", "Bam Adebay", "Rudy Gobert"]
+  };
+
+  let mode = 'offline'; 
+  let peer = null, conn = null;
+  let myTeamId = 'team1'; 
+  
+  let t1Name = "Team 1", t2Name = "Team 2";
+  let t1Ready = false, t2Ready = false;
+  
+  let draftPool = [];
+  let t1Roster = [], t2Roster = [];
+  let currentTurn = ''; 
+
+  let currentRound = 1, score1 = 0, score2 = 0;
+  let team1Attacking = true; 
+
+  function selectMode(selectedMode) {
+    mode = selectedMode;
+    document.getElementById('main-menu').classList.add('hidden');
+    document.getElementById('setup-board').classList.remove('hidden');
+
+    if (mode === 'offline') {
+      document.getElementById('my-team-name').value = "Home Team";
+      myTeamId = 'both';
+    } else {
+      document.getElementById('multiplayer-ui').classList.remove('hidden');
+      document.getElementById('ready-btn').disabled = true; 
+      if (mode === 'host') {
+        document.getElementById('host-ui').classList.remove('hidden');
+        myTeamId = 'team1';
+        initPeerJS();
+      } else if (mode === 'join') {
+        document.getElementById('join-ui').classList.remove('hidden');
+        document.getElementById('my-team-name').value = "Away Team";
+        myTeamId = 'team2';
+        initPeerJS();
+      }
+    }
+  }
+
+  function initPeerJS() {
+    peer = new Peer(); 
+    peer.on('open', (id) => {
+      if (mode === 'host') document.getElementById('my-peer-id').innerText = id;
+    });
+    peer.on('connection', (connection) => {
+      conn = connection;
+      setupConnectionHandlers();
+      document.getElementById('host-status').innerText = "Friend connected! Enter team name and Ready Up.";
+      document.getElementById('ready-btn').disabled = false;
+    });
+  }
+
+  function joinGame() {
+    const hostId = document.getElementById('join-id-input').value.trim();
+    if (!hostId) return;
+    document.getElementById('join-status').innerText = "Connecting...";
+    conn = peer.connect(hostId);
+    conn.on('open', () => {
+      setupConnectionHandlers();
+      document.getElementById('join-status').innerText = "Connected! Enter team name and Ready Up.";
+      document.getElementById('ready-btn').disabled = false;
+    });
+  }
+
+  function setupConnectionHandlers() {
+    conn.on('data', (data) => {
+      if (data.type === 'SETUP_READY') {
+        if (mode === 'host') { t2Name = data.teamName; t2Ready = true; }
+        else { t1Name = data.teamName; t1Ready = true; }
+        checkStartDraft();
+      }
+      else if (data.type === 'START_DRAFT') {
+        t1Name = data.t1Name; t2Name = data.t2Name;
+        draftPool = data.pool; currentTurn = data.turn;
+        initDraftUI();
+      }
+      else if (data.type === 'DRAFT_PICK') {
+        processDraftPick(data.playerId, data.teamId);
+      }
+      else if (data.type === 'SIM_REQUEST') {
+        if (mode === 'host') simulatePossession();
+      }
+      else if (data.type === 'STATE_SYNC') {
+        score1 = data.score1; score2 = data.score2;
+        currentRound = data.currentRound; team1Attacking = data.team1Attacking;
+        logEvent(data.logHtml); updateScoreboard();
+      }
+      else if (data.type === 'GAME_OVER') {
+        endGame(true, data);
+      }
+    });
+  }
+
+  function readyUp() {
+    const nameInput = document.getElementById('my-team-name').value || "Team";
+    document.getElementById('ready-btn').disabled = true;
+    document.getElementById('ready-btn').innerText = "Waiting...";
+
+    if (mode === 'offline') {
+      t1Name = nameInput;
+      t2Name = "Away Team"; 
+      t1Ready = true; t2Ready = true;
+      checkStartDraft();
+    } else {
+      if (mode === 'host') { t1Name = nameInput; t1Ready = true; }
+      else { t2Name = nameInput; t2Ready = true; }
+      conn.send({ type: 'SETUP_READY', teamName: nameInput });
+      checkStartDraft();
+    }
+  }
+
+  function checkStartDraft() {
+    if (t1Ready && t2Ready) {
+      if (mode === 'offline' || mode === 'host') {
+        generateDraftPool();
+        currentTurn = Math.random() > 0.5 ? 'team1' : 'team2';
+        if (mode === 'host') {
+          conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
+        }
+        initDraftUI();
+      }
+    }
+  }
+
+  function generateDraftPool() {
+    let poolId = 0;
+    positions.forEach(pos => {
+      let posNames = [...parodyNames[pos]].sort(() => 0.5 - Math.random()).slice(0, 3);
+      posNames.forEach(name => {
+        draftPool.push({
+          id: poolId++, name: name, pos: pos, draftedBy: null, points: 0,
+          pt2: statCaps[pos].pt2 - Math.floor(Math.random() * 10),
+          pt3: statCaps[pos].pt3 - Math.floor(Math.random() * 10),
+          blk: statCaps[pos].blk - Math.floor(Math.random() * 10),
+          def: statCaps[pos].def - Math.floor(Math.random() * 10)
+        });
+      });
+    });
+    draftPool.sort(() => 0.5 - Math.random());
+  }
+
+  function initDraftUI() {
+    document.getElementById('setup-board').classList.add('hidden');
+    document.getElementById('draft-board').classList.remove('hidden');
+    document.getElementById('t1-draft-name').innerText = t1Name;
+    document.getElementById('t2-draft-name').innerText = t2Name;
+    renderDraft();
+  }
+
+  function renderDraft() {
+    const header = document.getElementById('draft-turn-display');
+    const turnName = currentTurn === 'team1' ? t1Name : t2Name;
+    const turnColor = currentTurn === 'team1' ? '#0056b3' : '#d9534f';
+    
+    if (t1Roster.length === 5 && t2Roster.length === 5) {
+      header.innerHTML = "Draft Complete! Preparing game...";
+    } else {
+      let isMyTurn = (mode === 'offline') || (myTeamId === currentTurn);
+      header.innerHTML = isMyTurn ? `<span style="color:${turnColor}">Your Turn to Pick! (${turnName})</span>` 
+                                  : `Waiting for ${turnName} to pick...`;
+    }
+
+    renderRosterCol('t1-roster', t1Roster);
+    renderRosterCol('t2-roster', t2Roster);
+
+    const poolContainer = document.getElementById('draft-pool-container');
+    poolContainer.innerHTML = '';
+    
+    const activeRoster = currentTurn === 'team1' ? t1Roster : t2Roster;
+
+    draftPool.forEach(p => {
+      const isDrafted = p.draftedBy !== null;
+      const card = document.createElement('div');
+      card.className = `player-card ${isDrafted ? 'drafted' : ''}`;
+      
+      let btnHtml = '';
+      if (!isDrafted) {
+        const needsPos = !activeRoster.some(rp => rp.pos === p.pos);
+        const canPick = (mode === 'offline' || myTeamId === currentTurn) && needsPos;
+        
+        if (canPick) {
+          btnHtml = `<button class="btn" style="padding: 6px 12px; margin:0;" onclick="handleDraftClick(${p.id})">Draft</button>`;
+        } else if (!needsPos && (mode === 'offline' || myTeamId === currentTurn)) {
+          btnHtml = `<span style="font-size:12px; color:#999;">Pos Filled</span>`;
+        }
+      }
+
+      card.innerHTML = `
+        <div class="player-info">
+          <span class="player-name">${p.name}</span>
+          <span class="player-pos">${p.pos}</span>
+          <span class="player-stats">2PT: ${p.pt2} | 3PT: ${p.pt3} | BLK: ${p.blk} | DEF: ${p.def}</span>
+        </div>
+        <div>${btnHtml}</div>
+      `;
+      poolContainer.appendChild(card);
+    });
+  }
+
+  function renderRosterCol(elementId, roster) {
+    const el = document.getElementById(elementId);
+    el.innerHTML = '';
+    positions.forEach(pos => {
+      const player = roster.find(p => p.pos === pos);
+      if (player) {
+        el.innerHTML += `<div class="roster-slot"><strong>${pos}:</strong> ${player.name}</div>`;
+      } else {
+        el.innerHTML += `<div class="roster-slot roster-empty">${pos}: Empty</div>`;
+      }
+    });
+  }
+
+  function handleDraftClick(playerId) {
+    if (mode === 'offline' || mode === 'host') {
+      processDraftPick(playerId, currentTurn);
+    } else if (mode === 'join') {
+      conn.send({ type: 'DRAFT_PICK', playerId, teamId: myTeamId });
+    }
+  }
+
+  function processDraftPick(playerId, teamId) {
+    const player = draftPool.find(p => p.id === playerId);
+    player.draftedBy = teamId;
+    
+    if (teamId === 'team1') t1Roster.push(player);
+    else t2Roster.push(player);
+
+    currentTurn = currentTurn === 'team1' ? 'team2' : 'team1';
+
+    if (mode === 'host') {
+      conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
+    }
+
+    renderDraft();
+
+    if (t1Roster.length === 5 && t2Roster.length === 5) {
+      setTimeout(startGame, 1000); 
+    }
+  }
+
+  function startGame() {
+    t1Roster.sort((a,b) => positions.indexOf(a.pos) - positions.indexOf(b.pos));
+    t2Roster.sort((a,b) => positions.indexOf(a.pos) - positions.indexOf(b.pos));
+
+    document.getElementById('draft-board').classList.add('hidden');
+    document.getElementById('game-board').classList.remove('hidden');
+    document.getElementById('team1-score-name').innerText = t1Name;
+    document.getElementById('team2-score-name').innerText = t2Name;
+    
+    logEvent(`<strong>Tip-off!</strong> Draft complete. ${t1Name} wins possession.`);
+  }
+
+  function handleSimulateClick() {
+    if (mode === 'offline' || mode === 'host') simulatePossession();
+    else if (mode === 'join') conn.send({ type: 'SIM_REQUEST' });
+  }
+
+  function simulatePossession() {
+    if (currentRound > 40) return;
+
+    const attackerTeam = team1Attacking ? t1Roster : t2Roster;
+    const defenderTeam = team1Attacking ? t2Roster : t1Roster;
+    const attackerName = team1Attacking ? t1Name : t2Name;
+    const defenderName = team1Attacking ? t2Name : t1Name;
+
+    const posIndex = Math.floor(Math.random() * positions.length);
+    const attacker = attackerTeam[posIndex];
+    const defender = defenderTeam[posIndex];
+
+    const is3PT = Math.random() > 0.5;
+    const attackStat = is3PT ? attacker.pt3 : attacker.pt2;
+    const defendStat = is3PT ? defender.def : defender.blk; 
+
+    let scoringChance = attackStat > defendStat ? attackStat - (defendStat * 0.4) : attackStat * 0.4;
+    scoringChance = Math.max(5, Math.min(95, scoringChance));
+
+    const roll = Math.random() * 100;
+    const isScore = roll <= scoringChance;
+
+    let logHtml = `<strong>Round ${currentRound}:</strong> <strong>${attackerName} (${attacker.name} - ${attacker.pos})</strong> attempts a ${is3PT ? '3PT' : '2PT'} against <strong>${defenderName} (${defender.name} - ${defender.pos})</strong>. <br>`;
+
+    if (isScore) {
+      const points = is3PT ? 3 : 2;
+      attacker.points += points; // Increment individual player points
+      if (team1Attacking) score1 += points; else score2 += points;
+      logHtml += `✅ <strong style="color:green;">SCORE!</strong> +${points} points.`;
+    } else {
+      logHtml += `❌ <strong style="color:red;">MISS!</strong>`;
+    }
+
+    logEvent(logHtml);
+    team1Attacking = !team1Attacking; 
+    currentRound++;
+    updateScoreboard();
+
+    if (mode === 'host' && conn) {
+      conn.send({ type: 'STATE_SYNC', score1, score2, currentRound, team1Attacking, logHtml });
+    }
+
+    if (currentRound > 40) endGame(false);
+  }
+
+  function updateScoreboard() {
+    document.getElementById('score1').innerText = score1;
+    document.getElementById('score2').innerText = score2;
+    if (currentRound <= 40) {
+      document.getElementById('round-disp').innerText = currentRound;
+      document.getElementById('quarter-disp').innerText = Math.ceil(currentRound / 10);
+    }
+  }
+
+  function logEvent(html) {
+    const logContainer = document.getElementById('play-log');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = html;
+    logContainer.prepend(entry); 
+  }
+
+  function endGame(isClientSync, syncData) {
+    document.getElementById('game-board').classList.add('hidden');
+    document.getElementById('end-screen').classList.remove('hidden');
+
+    let t1Top, t2Top;
+
+    if (isClientSync && syncData) {
+      // Received MVP data from Host
+      t1Top = syncData.t1Top;
+      t2Top = syncData.t2Top;
+    } else {
+      // Compute MVP data locally (Offline or Host)
+      t1Top = t1Roster.reduce((max, p) => p.points > max.points ? p : max, t1Roster[0]);
+      t2Top = t2Roster.reduce((max, p) => p.points > max.points ? p : max, t2Roster[0]);
+      
+      if (mode === 'host' && conn) {
+        conn.send({ type: 'GAME_OVER', t1Top, t2Top });
+      }
+    }
+
+    // Populate End Screen
+    document.getElementById('end-t1-name').innerText = t1Name;
+    document.getElementById('end-score1').innerText = score1;
+    document.getElementById('end-t2-name').innerText = t2Name;
+    document.getElementById('end-score2').innerText = score2;
+    
+    let winnerMsg = score1 > score2 ? `${t1Name} Wins!` : score2 > score1 ? `${t2Name} Wins!` : "It's a Tie!";
+    document.getElementById('end-winner-msg').innerText = winnerMsg;
+
+    document.getElementById('t1-mvp-info').innerText = `${t1Top.name} (${t1Top.pos}) - ${t1Top.points} pts`;
+    document.getElementById('t2-mvp-info').innerText = `${t2Top.name} (${t2Top.pos}) - ${t2Top.points} pts`;
+  }
+</script>
+</body>
+</html>
