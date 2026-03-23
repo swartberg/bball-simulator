@@ -3,10 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Basketball Simulator: Session Protected</title>
+<title>Basketball Simulator: Rematch Edition</title>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <style>
-  /* [CSS remains exactly the same as the previous version] */
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
   h1, h2, h3, h4 { text-align: center; }
   .container { max-width: 1100px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
@@ -14,6 +13,8 @@
   .btn { display: inline-block; padding: 12px 24px; background-color: #0056b3; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin: 10px; }
   .btn:hover { background-color: #004494; }
   .btn:disabled { background-color: #aaa; cursor: not-allowed; }
+  .btn-rematch { background-color: #28a745; font-size: 20px; padding: 15px 30px; margin-top: 20px;}
+  .btn-rematch:hover { background-color: #218838; }
   .hidden { display: none !important; }
   .setup-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
   .setup-container input[type="text"] { padding: 10px; font-size: 16px; width: 250px; border: 1px solid #ccc; border-radius: 4px; }
@@ -99,7 +100,7 @@
     <div class="log-container" id="play-log"></div>
   </div>
 
-  <div id="end-screen" class="hidden">
+  <div id="end-screen" class="hidden" style="text-align: center;">
     <h2 style="font-size: 36px; margin-bottom: 5px;">Game Over</h2>
     <h3 id="end-winner-msg" style="color: #0056b3; margin-top: 0; margin-bottom: 30px;"></h3>
     <div class="scoreboard" style="justify-content: center; gap: 80px;">
@@ -116,6 +117,8 @@
         <div class="mvp-stats" id="t2-mvp-info">Name (Pos) - 0 pts</div>
       </div>
     </div>
+    
+    <button class="btn btn-rematch" id="rematch-btn" onclick="requestRematch()">Vote for Rematch</button>
   </div>
 </div>
 
@@ -128,38 +131,37 @@
     'PF': { pt2: 80, pt3: 70, def: 75, blk: 85 },
     'C':  { pt2: 95, pt3: 50, def: 70, blk: 95 }
   };
+  
+  // 100 Players Total (20 per position)
   const parodyNames = {
-    'PG': ["Seth Flurry", "Luca Donchick", "Dame Dillard", "Tyree Max", "Jay Brunson"],
-    'SG': ["Devon Baker", "Anton Edges", "Shay Gilgo", "Donne Mitchell", "Jim Harden"],
-    'SF': ["LeJon Brames", "Kevon Duront", "Jay Tatom", "Kawi Leonard", "Jim Butler"],
-    'PF': ["Gianni Antetko", "Xion Williams", "Anton Davis", "Carl Towns", "Paul Jorges"],
-    'C':  ["Nico Joking", "Joe Embead", "Vic Wemby", "Bam Adebay", "Rudy Gobert"]
+    'PG': ["Seth Flurry", "Luca Donchick", "Dame Dillard", "Tyree Max", "Jay Brunson", "Trey Yung", "Jah Morant", "Deeran Fox", "Shai Gilg", "Chris Pall", "Russ West", "Kyrie Irv", "Tyrese Hal", "Fred Vleet", "Dar Garland", "Lamel Ball", "Jamal Murr", "D'Lo Russell", "Jru Holid", "Mark Smart"],
+    'SG': ["Devon Baker", "Anton Edges", "Donne Mitchell", "Jim Harden", "Jay Brown", "Brad Beel", "Zach LaV", "Clay Thomp", "CJ McCol", "Ant Simon", "Des Bane", "Tyler Her", "Jalen Green", "Mal Monk", "Jor Clark", "Bog Bogdan", "Norm Pow", "Alex Carus", "Josh Gidd", "Derrick Whit"],
+    'SF': ["LeJon Brames", "Kevon Duront", "Jay Tatom", "Kawi Leonard", "Jim Butler", "Paul Jorges", "Demar Deroz", "Mikal Bridg", "Brand Ingr", "Khris Midd", "O.G. Anun", "Franz Wagn", "RJ Barr", "Mich Porter", "Keldon John", "Har Barnes", "Dill Brook", "Deandre Hunt", "Gord Hayw", "Kelly Oub"],
+    'PF': ["Gianni Antetko", "Xion Williams", "Anton Davis", "Carl Towns", "Jul Rand", "Pasc Siak", "Dray Green", "Evan Mobl", "Jaren Jack", "Aar Gordon", "Jer Grant", "Kyle Kuz", "John Coll", "PJ Wash", "Lauri Mark", "Paolo Banch", "Jabari Smi", "Keegan Mur", "Obi Topp", "Bobby Port"],
+    'C':  ["Nico Joking", "Joe Embead", "Vic Wemby", "Bam Adebay", "Rudy Gobert", "Dom Sabon", "Brook Lop", "Myles Turn", "Deand Ayton", "Nic Clax", "Jar Allen", "Al Horf", "Rob Will", "Mitch Rob", "Walk Kess", "Jon Valanciun", "Vuc Vucev", "Jus Nurkic", "Steven Adams", "Clint Cape"]
   };
 
   let mode = 'offline'; 
   let peer = null, conn = null;
   let myTeamId = 'team1'; 
-  let isGameActive = false; // Flag for the navigation warning
+  let isGameActive = false; 
   
   let t1Name = "Team 1", t2Name = "Team 2";
   let t1Ready = false, t2Ready = false;
+  let myRematchReady = false, oppRematchReady = false;
   
   let draftPool = [], t1Roster = [], t2Roster = [];
   let currentTurn = ''; 
   let currentRound = 1, score1 = 0, score2 = 0;
   let team1Attacking = true; 
 
-  // --- SESSION PROTECTION: Prevent accidental navigation ---
   window.addEventListener('beforeunload', function (e) {
-    if (isGameActive) {
-      e.preventDefault();
-      e.returnValue = ''; // Triggers the browser's safe-exit warning
-    }
+    if (isGameActive) { e.preventDefault(); e.returnValue = ''; }
   });
 
   function selectMode(selectedMode) {
     mode = selectedMode;
-    isGameActive = true; // Lock navigation once a mode is selected
+    isGameActive = true; 
     document.getElementById('main-menu').classList.add('hidden');
     document.getElementById('setup-board').classList.remove('hidden');
 
@@ -184,23 +186,14 @@
 
   function initPeerJS() {
     peer = new Peer(); 
-    peer.on('open', (id) => {
-      if (mode === 'host') document.getElementById('my-peer-id').innerText = id;
-    });
-    
-    // Host receives connection
+    peer.on('open', (id) => { if (mode === 'host') document.getElementById('my-peer-id').innerText = id; });
     peer.on('connection', (connection) => {
       conn = connection;
       setupConnectionHandlers();
       document.getElementById('host-status').innerText = "Friend connected! Enter team name and Ready Up.";
       document.getElementById('ready-btn').disabled = false;
     });
-
-    // Handle Peer Server errors (like network drop)
-    peer.on('error', (err) => {
-      console.error(err);
-      alert("Network error. Please refresh and try again.");
-    });
+    peer.on('error', (err) => { console.error(err); alert("Network error. Please refresh and try again."); });
   }
 
   function joinGame() {
@@ -208,7 +201,6 @@
     if (!hostId) return;
     document.getElementById('join-status').innerText = "Connecting...";
     conn = peer.connect(hostId);
-    
     conn.on('open', () => {
       setupConnectionHandlers();
       document.getElementById('join-status').innerText = "Connected! Enter team name and Ready Up.";
@@ -217,11 +209,10 @@
   }
 
   function setupConnectionHandlers() {
-    // --- SESSION PROTECTION: Handle Opponent Disconnect ---
     conn.on('close', () => {
-      isGameActive = false; // Release the navigation lock
+      isGameActive = false;
       alert("The connection was lost or your opponent left the game.");
-      window.location.reload(); // Cleanly reset the UI back to the main menu
+      window.location.reload(); 
     });
 
     conn.on('data', (data) => {
@@ -235,19 +226,16 @@
         draftPool = data.pool; currentTurn = data.turn;
         initDraftUI();
       }
-      else if (data.type === 'DRAFT_PICK') {
-        processDraftPick(data.playerId, data.teamId);
-      }
-      else if (data.type === 'SIM_REQUEST') {
-        if (mode === 'host') simulatePossession();
-      }
+      else if (data.type === 'DRAFT_PICK') { processDraftPick(data.playerId, data.teamId); }
+      else if (data.type === 'SIM_REQUEST') { if (mode === 'host') simulatePossession(); }
       else if (data.type === 'STATE_SYNC') {
-        score1 = data.score1; score2 = data.score2;
-        currentRound = data.currentRound; team1Attacking = data.team1Attacking;
-        logEvent(data.logHtml); updateScoreboard();
+        score1 = data.score1; score2 = data.score2; currentRound = data.currentRound; 
+        team1Attacking = data.team1Attacking; logEvent(data.logHtml); updateScoreboard();
       }
-      else if (data.type === 'GAME_OVER') {
-        endGame(true, data);
+      else if (data.type === 'GAME_OVER') { endGame(true, data); }
+      else if (data.type === 'REMATCH_READY') {
+        oppRematchReady = true;
+        checkRematchTrigger();
       }
     });
   }
@@ -283,24 +271,29 @@
   }
 
   function generateDraftPool() {
+    draftPool = [];
     let poolId = 0;
     positions.forEach(pos => {
-      let posNames = [...parodyNames[pos]].sort(() => 0.5 - Math.random()).slice(0, 3);
+      // Pull exactly 5 players per position from the pool of 20
+      let posNames = [...parodyNames[pos]].sort(() => 0.5 - Math.random()).slice(0, 5);
       posNames.forEach(name => {
         draftPool.push({
           id: poolId++, name: name, pos: pos, draftedBy: null, points: 0,
-          pt2: statCaps[pos].pt2 - Math.floor(Math.random() * 10),
-          pt3: statCaps[pos].pt3 - Math.floor(Math.random() * 10),
-          blk: statCaps[pos].blk - Math.floor(Math.random() * 10),
-          def: statCaps[pos].def - Math.floor(Math.random() * 10)
+          // High variance: stats can be up to 40 points below their positional cap
+          pt2: Math.max(10, statCaps[pos].pt2 - Math.floor(Math.random() * 40)),
+          pt3: Math.max(10, statCaps[pos].pt3 - Math.floor(Math.random() * 40)),
+          blk: Math.max(10, statCaps[pos].blk - Math.floor(Math.random() * 40)),
+          def: Math.max(10, statCaps[pos].def - Math.floor(Math.random() * 40))
         });
       });
     });
+    // Shuffle the final 25 players
     draftPool.sort(() => 0.5 - Math.random());
   }
 
   function initDraftUI() {
     document.getElementById('setup-board').classList.add('hidden');
+    document.getElementById('end-screen').classList.add('hidden');
     document.getElementById('draft-board').classList.remove('hidden');
     document.getElementById('t1-draft-name').innerText = t1Name;
     document.getElementById('t2-draft-name').innerText = t2Name;
@@ -316,8 +309,7 @@
       header.innerHTML = "Draft Complete! Preparing game...";
     } else {
       let isMyTurn = (mode === 'offline') || (myTeamId === currentTurn);
-      header.innerHTML = isMyTurn ? `<span style="color:${turnColor}">Your Turn to Pick! (${turnName})</span>` 
-                                  : `Waiting for ${turnName} to pick...`;
+      header.innerHTML = isMyTurn ? `<span style="color:${turnColor}">Your Turn to Pick! (${turnName})</span>` : `Waiting for ${turnName} to pick...`;
     }
 
     renderRosterCol('t1-roster', t1Roster);
@@ -371,11 +363,8 @@
   }
 
   function handleDraftClick(playerId) {
-    if (mode === 'offline' || mode === 'host') {
-      processDraftPick(playerId, currentTurn);
-    } else if (mode === 'join') {
-      conn.send({ type: 'DRAFT_PICK', playerId, teamId: myTeamId });
-    }
+    if (mode === 'offline' || mode === 'host') processDraftPick(playerId, currentTurn);
+    else if (mode === 'join') conn.send({ type: 'DRAFT_PICK', playerId, teamId: myTeamId });
   }
 
   function processDraftPick(playerId, teamId) {
@@ -386,11 +375,7 @@
     else t2Roster.push(player);
 
     currentTurn = currentTurn === 'team1' ? 'team2' : 'team1';
-
-    if (mode === 'host') {
-      conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
-    }
-
+    if (mode === 'host') conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
     renderDraft();
 
     if (t1Roster.length === 5 && t2Roster.length === 5) {
@@ -402,11 +387,16 @@
     t1Roster.sort((a,b) => positions.indexOf(a.pos) - positions.indexOf(b.pos));
     t2Roster.sort((a,b) => positions.indexOf(a.pos) - positions.indexOf(b.pos));
 
+    document.getElementById('sim-btn').disabled = false;
+    document.getElementById('sim-btn').innerText = "Simulate Possession";
+    document.getElementById('play-log').innerHTML = ''; // Clear old logs
+
     document.getElementById('draft-board').classList.add('hidden');
     document.getElementById('game-board').classList.remove('hidden');
     document.getElementById('team1-score-name').innerText = t1Name;
     document.getElementById('team2-score-name').innerText = t2Name;
     
+    updateScoreboard();
     logEvent(`<strong>Tip-off!</strong> Draft complete. ${t1Name} wins possession.`);
   }
 
@@ -478,22 +468,23 @@
   }
 
   function endGame(isClientSync, syncData) {
-    isGameActive = false; // Game is over, safe to navigate away
     document.getElementById('game-board').classList.add('hidden');
     document.getElementById('end-screen').classList.remove('hidden');
+    
+    // Reset rematch states
+    myRematchReady = false; oppRematchReady = false;
+    const rBtn = document.getElementById('rematch-btn');
+    rBtn.innerText = "Vote for Rematch";
+    rBtn.disabled = false;
 
     let t1Top, t2Top;
 
     if (isClientSync && syncData) {
-      t1Top = syncData.t1Top;
-      t2Top = syncData.t2Top;
+      t1Top = syncData.t1Top; t2Top = syncData.t2Top;
     } else {
       t1Top = t1Roster.reduce((max, p) => p.points > max.points ? p : max, t1Roster[0]);
       t2Top = t2Roster.reduce((max, p) => p.points > max.points ? p : max, t2Roster[0]);
-      
-      if (mode === 'host' && conn) {
-        conn.send({ type: 'GAME_OVER', t1Top, t2Top });
-      }
+      if (mode === 'host' && conn) conn.send({ type: 'GAME_OVER', t1Top, t2Top });
     }
 
     document.getElementById('end-t1-name').innerText = t1Name;
@@ -506,6 +497,40 @@
 
     document.getElementById('t1-mvp-info').innerText = `${t1Top.name} (${t1Top.pos}) - ${t1Top.points} pts`;
     document.getElementById('t2-mvp-info').innerText = `${t2Top.name} (${t2Top.pos}) - ${t2Top.points} pts`;
+  }
+
+  // --- REMATCH LOGIC ---
+  function requestRematch() {
+    myRematchReady = true;
+    const rBtn = document.getElementById('rematch-btn');
+    rBtn.innerText = "Waiting for opponent...";
+    rBtn.disabled = true;
+
+    if (mode === 'offline') {
+      oppRematchReady = true; 
+      checkRematchTrigger();
+    } else {
+      conn.send({ type: 'REMATCH_READY' });
+      checkRematchTrigger();
+    }
+  }
+
+  function checkRematchTrigger() {
+    if (myRematchReady && oppRematchReady) {
+      // Wipe the slate clean
+      t1Roster = []; t2Roster = [];
+      score1 = 0; score2 = 0; currentRound = 1; team1Attacking = true;
+      
+      // Send back to draft room
+      if (mode === 'offline' || mode === 'host') {
+        generateDraftPool();
+        currentTurn = Math.random() > 0.5 ? 'team1' : 'team2';
+        if (mode === 'host') {
+          conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
+        }
+        initDraftUI();
+      }
+    }
   }
 </script>
 </body>
