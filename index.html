@@ -3,19 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Basketball Simulator: Rematch Edition</title>
+<title>Basketball Simulator: Box Score Edition</title>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <style>
   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
   h1, h2, h3, h4 { text-align: center; }
   .container { max-width: 1100px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
   .menu { text-align: center; padding: 40px; }
-  .btn { display: inline-block; padding: 12px 24px; background-color: #0056b3; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin: 10px; }
+  .btn { display: inline-block; padding: 12px 24px; background-color: #0056b3; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin: 10px; transition: 0.2s; }
   .btn:hover { background-color: #004494; }
   .btn:disabled { background-color: #aaa; cursor: not-allowed; }
+  
+  .btn-sim { width: 100%; font-size: 20px; padding: 18px; margin: 0; font-weight: bold; }
+  .btn-sim.my-turn { background-color: #28a745; }
+  .btn-sim.my-turn:hover { background-color: #218838; }
+  .btn-sim.wait-turn { background-color: #6c757d; color: #e9ecef; }
+  
   .btn-rematch { background-color: #28a745; font-size: 20px; padding: 15px 30px; margin-top: 20px;}
   .btn-rematch:hover { background-color: #218838; }
   .hidden { display: none !important; }
+  
   .setup-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
   .setup-container input[type="text"] { padding: 10px; font-size: 16px; width: 250px; border: 1px solid #ccc; border-radius: 4px; }
   .multiplayer-status { background: #e9ecef; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px; width: 100%; max-width: 400px; }
@@ -31,13 +38,21 @@
   .player-stats { font-size: 13px; color: #555; margin-top: 5px; }
   .roster-slot { padding: 10px; margin-bottom: 5px; border-bottom: 1px solid #eee; font-size: 14px; }
   .roster-empty { color: #999; font-style: italic; }
-  .scoreboard { display: flex; justify-content: space-around; background: #222; color: #fff; padding: 20px; border-radius: 8px; font-size: 24px; margin-bottom: 20px; font-weight: bold; }
+  .scoreboard { display: flex; justify-content: space-around; background: #222; color: #fff; padding: 20px; border-radius: 8px; font-size: 24px; margin-bottom: 20px; font-weight: bold; align-items: center; }
   .log-container { background: #eee; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 14px; }
   .log-entry { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #ddd; }
-  .mvp-section { display: flex; justify-content: space-around; margin-top: 30px; }
-  .mvp-card { background: #fafafa; border: 2px solid #0056b3; border-radius: 8px; padding: 20px; width: 40%; text-align: center; }
-  .mvp-card h3 { margin-top: 0; color: #0056b3; }
-  .mvp-stats { font-size: 20px; font-weight: bold; }
+  
+  /* BOX SCORE STYLES */
+  .mvp-section { display: flex; justify-content: space-around; margin-top: 20px; }
+  .mvp-card { background: #fafafa; border: 2px solid #0056b3; border-radius: 8px; padding: 15px; width: 40%; text-align: center; }
+  .mvp-card h3 { margin-top: 0; color: #0056b3; margin-bottom: 10px;}
+  .mvp-stats { font-size: 18px; font-weight: bold; }
+  
+  .box-score-section { display: flex; justify-content: space-around; margin-top: 20px; text-align: left; }
+  .box-score-col { width: 40%; background: #fafafa; border: 1px solid #ccc; border-radius: 8px; padding: 15px; }
+  .box-score-col h4 { margin-top: 0; border-bottom: 2px solid #ddd; padding-bottom: 8px; text-align: center; }
+  .box-score-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+  .box-score-row:last-child { border-bottom: none; }
 </style>
 </head>
 <body>
@@ -91,31 +106,39 @@
 
   <div id="game-board" class="hidden">
     <div class="scoreboard">
-      <div><span id="team1-score-name">Team 1</span>: <span id="score1">0</span></div>
-      <div style="font-size: 18px; font-weight: normal; margin-top: 5px;">Quarter: <span id="quarter-disp">1</span> | Round: <span id="round-disp">1</span>/40</div>
-      <div><span id="team2-score-name">Team 2</span>: <span id="score2">0</span></div>
+      <div style="text-align:center;"><span id="team1-score-name">Team 1</span><br><span id="score1" style="font-size:36px;">0</span></div>
+      <div style="font-size: 18px; font-weight: normal; text-align:center;">Quarter: <span id="quarter-disp">1</span><br>Round: <span id="round-disp">1</span>/40</div>
+      <div style="text-align:center;"><span id="team2-score-name">Team 2</span><br><span id="score2" style="font-size:36px;">0</span></div>
     </div>
-    <button class="btn" style="width:100%;" id="sim-btn" onclick="handleSimulateClick()">Simulate Possession</button>
+    
+    <button class="btn btn-sim" id="sim-btn" onclick="handleSimulateClick()">Simulate Possession</button>
+    
     <h3 style="margin-top: 20px;">Play-by-Play</h3>
     <div class="log-container" id="play-log"></div>
   </div>
 
   <div id="end-screen" class="hidden" style="text-align: center;">
     <h2 style="font-size: 36px; margin-bottom: 5px;">Game Over</h2>
-    <h3 id="end-winner-msg" style="color: #0056b3; margin-top: 0; margin-bottom: 30px;"></h3>
+    <h3 id="end-winner-msg" style="color: #0056b3; margin-top: 0; margin-bottom: 20px;"></h3>
     <div class="scoreboard" style="justify-content: center; gap: 80px;">
       <div style="text-align: center;"><span id="end-t1-name">Team 1</span><br><span id="end-score1" style="font-size: 48px;">0</span></div>
       <div style="text-align: center;"><span id="end-t2-name">Team 2</span><br><span id="end-score2" style="font-size: 48px;">0</span></div>
     </div>
+    
     <div class="mvp-section">
       <div class="mvp-card">
-        <h3>Team 1 Top Scorer</h3>
+        <h3>Team 1 MVP</h3>
         <div class="mvp-stats" id="t1-mvp-info">Name (Pos) - 0 pts</div>
       </div>
       <div class="mvp-card">
-        <h3>Team 2 Top Scorer</h3>
+        <h3>Team 2 MVP</h3>
         <div class="mvp-stats" id="t2-mvp-info">Name (Pos) - 0 pts</div>
       </div>
+    </div>
+
+    <div class="box-score-section">
+      <div class="box-score-col" id="t1-box-score"></div>
+      <div class="box-score-col" id="t2-box-score"></div>
     </div>
     
     <button class="btn btn-rematch" id="rematch-btn" onclick="requestRematch()">Vote for Rematch</button>
@@ -132,13 +155,12 @@
     'C':  { pt2: 95, pt3: 50, def: 70, blk: 95 }
   };
   
-  // 100 Players Total (20 per position)
   const parodyNames = {
-    'PG': ["Seth Flurry", "Luca Donchick", "Dame Dillard", "Tyree Max", "Jay Brunson", "Trey Yung", "Jah Morant", "Deeran Fox", "Shai Gilg", "Chris Pall", "Russ West", "Kyrie Irv", "Tyrese Hal", "Fred Vleet", "Dar Garland", "Lamel Ball", "Jamal Murr", "D'Lo Russell", "Jru Holid", "Mark Smart"],
-    'SG': ["Devon Baker", "Anton Edges", "Donne Mitchell", "Jim Harden", "Jay Brown", "Brad Beel", "Zach LaV", "Clay Thomp", "CJ McCol", "Ant Simon", "Des Bane", "Tyler Her", "Jalen Green", "Mal Monk", "Jor Clark", "Bog Bogdan", "Norm Pow", "Alex Carus", "Josh Gidd", "Derrick Whit"],
-    'SF': ["LeJon Brames", "Kevon Duront", "Jay Tatom", "Kawi Leonard", "Jim Butler", "Paul Jorges", "Demar Deroz", "Mikal Bridg", "Brand Ingr", "Khris Midd", "O.G. Anun", "Franz Wagn", "RJ Barr", "Mich Porter", "Keldon John", "Har Barnes", "Dill Brook", "Deandre Hunt", "Gord Hayw", "Kelly Oub"],
-    'PF': ["Gianni Antetko", "Xion Williams", "Anton Davis", "Carl Towns", "Jul Rand", "Pasc Siak", "Dray Green", "Evan Mobl", "Jaren Jack", "Aar Gordon", "Jer Grant", "Kyle Kuz", "John Coll", "PJ Wash", "Lauri Mark", "Paolo Banch", "Jabari Smi", "Keegan Mur", "Obi Topp", "Bobby Port"],
-    'C':  ["Nico Joking", "Joe Embead", "Vic Wemby", "Bam Adebay", "Rudy Gobert", "Dom Sabon", "Brook Lop", "Myles Turn", "Deand Ayton", "Nic Clax", "Jar Allen", "Al Horf", "Rob Will", "Mitch Rob", "Walk Kess", "Jon Valanciun", "Vuc Vucev", "Jus Nurkic", "Steven Adams", "Clint Cape"]
+    'PG': ["Steph Cucky", "Lucas Donchick", "Dame Billiard", "Tyree Maximum", "Jalen Bruno", "Trey Old", "Bruh Morant", "Deeran Cox", "Shai Gorgeous-Alexander", "Chris Pauly", "Russ Westbrick", "Kylie Irving", "Tyrese Haliban", "Fred VanVroom", "Marius Garland", "Lamel Ball", "Jamal Murr", "D'Ebilo Russell", "Jru Atostog", "Marcus Dumb"],
+    'SG': ["Devon Book", "Anthony Edgars", "Dovana Mitchell", "James Hard", "Jaylen Pink", "Bradley Beab", "Zach Lalaila", "Klay Ciukst", "CJ Collum", "Ant Simon", "Des Bane", "Ty Hero", "Jalen Blue", "Malik Priest", "Kobe Clarkson", "Bog Bogdan", "Norman Power", "Alex Caruso", "Josh Kidney", "Derrick Bright"],
+    'SF': ["LeJon Brames", "Kevon Trysrand", "Jayson Tattoo", "Kawhy Leonard", "Jim Butler", "Paul Jorges", "Demar Dezik", "Mikal Bridge", "Brand Instagram", "Khris Centerton", "O.G. Anonymus", "Franz Wagon", "RJ Barakuda", "Mich Porter", "Keldon John", "Har Barnes", "Dill Brook", "Deandre Cunter", "Gord Hayw", "Kelly Ou"],
+    'PF': ["Giannis Adekombo", "Xion Williams", "Anton Davisev", "Carl Towns", "Julius Randal", "Pascal Sick", "Donkey Green", "Evan Mobilka", "Jaren Jack", "Arūnas Gordon", "Jerry Grant", "Kyle Kuzminskas", "John Coll", "PJ Wash", "Lauri Mark", "Paolo Beach", "Jabari Smithy", "Keegan Murmur", "Obi Top", "Bobby Porty"],
+    'C':  ["Nick Joking", "Joe Embead", "Wembar Victoryama", "Bam Adebil", "Rudy Goby", "Dom Sabounes", "Brook Lopas", "Myles Turn", "Dread Ayton", "Nic Clax", "Jar Alan", "Al Horf", "Robbie Williams", "Mitch Rob", "Walk Kess", "Jones Valanciuasa", "Vuc Vuc", "Jus Nurkic", "Steven Adams", "Clit Capela"]
   };
 
   let mode = 'offline'; 
@@ -224,18 +246,30 @@
       else if (data.type === 'START_DRAFT') {
         t1Name = data.t1Name; t2Name = data.t2Name;
         draftPool = data.pool; currentTurn = data.turn;
+        t1Roster = data.t1Roster || []; 
+        t2Roster = data.t2Roster || [];
+        
         initDraftUI();
+        if (t1Roster.length === 5 && t2Roster.length === 5) {
+            setTimeout(startGame, 1000);
+        }
       }
-      else if (data.type === 'DRAFT_PICK') { processDraftPick(data.playerId, data.teamId); }
-      else if (data.type === 'SIM_REQUEST') { if (mode === 'host') simulatePossession(); }
+      else if (data.type === 'DRAFT_PICK') { 
+        processDraftPick(data.playerId, data.teamId); 
+      }
+      else if (data.type === 'SIM_REQUEST') { 
+        if (mode === 'host' && !team1Attacking) simulatePossession(); 
+      }
       else if (data.type === 'STATE_SYNC') {
         score1 = data.score1; score2 = data.score2; currentRound = data.currentRound; 
-        team1Attacking = data.team1Attacking; logEvent(data.logHtml); updateScoreboard();
+        team1Attacking = data.team1Attacking; logEvent(data.logHtml); 
+        updateScoreboard(); updateSimButton(); 
       }
-      else if (data.type === 'GAME_OVER') { endGame(true, data); }
+      else if (data.type === 'GAME_OVER') { 
+        endGame(true, data); 
+      }
       else if (data.type === 'REMATCH_READY') {
-        oppRematchReady = true;
-        checkRematchTrigger();
+        oppRematchReady = true; checkRematchTrigger();
       }
     });
   }
@@ -263,7 +297,7 @@
         generateDraftPool();
         currentTurn = Math.random() > 0.5 ? 'team1' : 'team2';
         if (mode === 'host') {
-          conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
+          conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn, t1Roster, t2Roster });
         }
         initDraftUI();
       }
@@ -274,12 +308,10 @@
     draftPool = [];
     let poolId = 0;
     positions.forEach(pos => {
-      // Pull exactly 5 players per position from the pool of 20
       let posNames = [...parodyNames[pos]].sort(() => 0.5 - Math.random()).slice(0, 5);
       posNames.forEach(name => {
         draftPool.push({
           id: poolId++, name: name, pos: pos, draftedBy: null, points: 0,
-          // High variance: stats can be up to 40 points below their positional cap
           pt2: Math.max(10, statCaps[pos].pt2 - Math.floor(Math.random() * 40)),
           pt3: Math.max(10, statCaps[pos].pt3 - Math.floor(Math.random() * 40)),
           blk: Math.max(10, statCaps[pos].blk - Math.floor(Math.random() * 40)),
@@ -287,7 +319,6 @@
         });
       });
     });
-    // Shuffle the final 25 players
     draftPool.sort(() => 0.5 - Math.random());
   }
 
@@ -375,7 +406,10 @@
     else t2Roster.push(player);
 
     currentTurn = currentTurn === 'team1' ? 'team2' : 'team1';
-    if (mode === 'host') conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
+    
+    if (mode === 'host') {
+        conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn, t1Roster, t2Roster });
+    }
     renderDraft();
 
     if (t1Roster.length === 5 && t2Roster.length === 5) {
@@ -387,9 +421,7 @@
     t1Roster.sort((a,b) => positions.indexOf(a.pos) - positions.indexOf(b.pos));
     t2Roster.sort((a,b) => positions.indexOf(a.pos) - positions.indexOf(b.pos));
 
-    document.getElementById('sim-btn').disabled = false;
-    document.getElementById('sim-btn').innerText = "Simulate Possession";
-    document.getElementById('play-log').innerHTML = ''; // Clear old logs
+    document.getElementById('play-log').innerHTML = ''; 
 
     document.getElementById('draft-board').classList.add('hidden');
     document.getElementById('game-board').classList.remove('hidden');
@@ -397,12 +429,38 @@
     document.getElementById('team2-score-name').innerText = t2Name;
     
     updateScoreboard();
-    logEvent(`<strong>Tip-off!</strong> Draft complete. ${t1Name} wins possession.`);
+    updateSimButton(); 
+    
+    logEvent(`<strong>Tip-off!</strong> Draft complete. ${team1Attacking ? t1Name : t2Name} wins possession.`);
+  }
+
+  function updateSimButton() {
+    const btn = document.getElementById('sim-btn');
+    if (mode === 'offline') {
+      btn.disabled = false;
+      btn.className = "btn btn-sim my-turn";
+      btn.innerText = `Simulate Possession (${team1Attacking ? t1Name : t2Name} Attacking)`;
+      return;
+    }
+
+    const amIAttacking = (mode === 'host' && team1Attacking) || (mode === 'join' && !team1Attacking);
+    const attackingTeamName = team1Attacking ? t1Name : t2Name;
+    
+    if (amIAttacking) {
+      btn.disabled = false;
+      btn.className = "btn btn-sim my-turn";
+      btn.innerText = "Simulate Possession (Your Turn)";
+    } else {
+      btn.disabled = true;
+      btn.className = "btn btn-sim wait-turn";
+      btn.innerText = `Waiting for ${attackingTeamName}...`;
+    }
   }
 
   function handleSimulateClick() {
-    if (mode === 'offline' || mode === 'host') simulatePossession();
-    else if (mode === 'join') conn.send({ type: 'SIM_REQUEST' });
+    if (mode === 'offline') simulatePossession();
+    else if (mode === 'host' && team1Attacking) simulatePossession();
+    else if (mode === 'join' && !team1Attacking) conn.send({ type: 'SIM_REQUEST' });
   }
 
   function simulatePossession() {
@@ -441,7 +499,9 @@
     logEvent(logHtml);
     team1Attacking = !team1Attacking; 
     currentRound++;
+    
     updateScoreboard();
+    updateSimButton();
 
     if (mode === 'host' && conn) {
       conn.send({ type: 'STATE_SYNC', score1, score2, currentRound, team1Attacking, logHtml });
@@ -471,20 +531,24 @@
     document.getElementById('game-board').classList.add('hidden');
     document.getElementById('end-screen').classList.remove('hidden');
     
-    // Reset rematch states
     myRematchReady = false; oppRematchReady = false;
     const rBtn = document.getElementById('rematch-btn');
     rBtn.innerText = "Vote for Rematch";
     rBtn.disabled = false;
 
-    let t1Top, t2Top;
+    let t1Top, t2Top, finalT1, finalT2;
 
     if (isClientSync && syncData) {
       t1Top = syncData.t1Top; t2Top = syncData.t2Top;
+      finalT1 = syncData.t1Roster; finalT2 = syncData.t2Roster;
     } else {
       t1Top = t1Roster.reduce((max, p) => p.points > max.points ? p : max, t1Roster[0]);
       t2Top = t2Roster.reduce((max, p) => p.points > max.points ? p : max, t2Roster[0]);
-      if (mode === 'host' && conn) conn.send({ type: 'GAME_OVER', t1Top, t2Top });
+      finalT1 = t1Roster; finalT2 = t2Roster;
+      // Send the final rosters (with points) to the joiner
+      if (mode === 'host' && conn) {
+        conn.send({ type: 'GAME_OVER', t1Top, t2Top, t1Roster, t2Roster });
+      }
     }
 
     document.getElementById('end-t1-name').innerText = t1Name;
@@ -497,9 +561,22 @@
 
     document.getElementById('t1-mvp-info').innerText = `${t1Top.name} (${t1Top.pos}) - ${t1Top.points} pts`;
     document.getElementById('t2-mvp-info').innerText = `${t2Top.name} (${t2Top.pos}) - ${t2Top.points} pts`;
+
+    // Render Box Scores
+    function buildBoxScore(roster, teamName) {
+      // Sort players by points scored (highest to lowest)
+      let sorted = [...roster].sort((a,b) => b.points - a.points);
+      let html = `<h4>${teamName} Box Score</h4>`;
+      sorted.forEach(p => {
+        html += `<div class="box-score-row"><span>${p.name} (${p.pos})</span> <span><strong>${p.points}</strong> pts</span></div>`;
+      });
+      return html;
+    }
+
+    document.getElementById('t1-box-score').innerHTML = buildBoxScore(finalT1, t1Name);
+    document.getElementById('t2-box-score').innerHTML = buildBoxScore(finalT2, t2Name);
   }
 
-  // --- REMATCH LOGIC ---
   function requestRematch() {
     myRematchReady = true;
     const rBtn = document.getElementById('rematch-btn');
@@ -507,8 +584,7 @@
     rBtn.disabled = true;
 
     if (mode === 'offline') {
-      oppRematchReady = true; 
-      checkRematchTrigger();
+      oppRematchReady = true; checkRematchTrigger();
     } else {
       conn.send({ type: 'REMATCH_READY' });
       checkRematchTrigger();
@@ -517,16 +593,14 @@
 
   function checkRematchTrigger() {
     if (myRematchReady && oppRematchReady) {
-      // Wipe the slate clean
       t1Roster = []; t2Roster = [];
       score1 = 0; score2 = 0; currentRound = 1; team1Attacking = true;
       
-      // Send back to draft room
       if (mode === 'offline' || mode === 'host') {
         generateDraftPool();
         currentTurn = Math.random() > 0.5 ? 'team1' : 'team2';
         if (mode === 'host') {
-          conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn });
+          conn.send({ type: 'START_DRAFT', t1Name, t2Name, pool: draftPool, turn: currentTurn, t1Roster, t2Roster });
         }
         initDraftUI();
       }
